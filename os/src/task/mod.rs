@@ -14,14 +14,16 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm;
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
-
+pub use taskinfo::TaskInfo;
 pub use context::TaskContext;
 
 /// The task manager, where all the tasks are managed.
@@ -89,6 +91,19 @@ impl TaskManager {
         panic!("unreachable in run_first_task!");
     }
 
+    /// Record the current task id to inner.current_task.
+    fn record_syscall(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].taskinfo.syscall_records[syscall_id] += 1;
+    }
+
+    fn get_syscall_times(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].taskinfo.syscall_records[syscall_id]
+    }
+
     /// Change the status of current `Running` task into `Ready`.
     fn mark_current_suspended(&self) {
         let mut inner = self.inner.exclusive_access();
@@ -118,6 +133,23 @@ impl TaskManager {
     fn get_current_token(&self) -> usize {
         let inner = self.inner.exclusive_access();
         inner.tasks[inner.current_task].get_user_token()
+    }
+
+    /// Map a virtual memory range to the current task's address space.
+    fn mmap_current_task(&self, start_va: mm::VirtAddr, end_va: mm::VirtAddr, port: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        let mut permission = mm::MapPermission::U;
+        if port & 0x1 != 0 { permission |= mm::MapPermission::R; }
+        if port & 0x2 != 0 { permission |= mm::MapPermission::W; }
+        if port & 0x4 != 0 { permission |= mm::MapPermission::X; }
+        inner.tasks[cur].memory_set.insert_framed_area(start_va, end_va, permission);
+    }
+
+    fn munmap_current_task(&self, start_va: mm::VirtAddr, end_va: mm::VirtAddr){
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].memory_set.remove_area(start_va, end_va);
     }
 
     /// Get the current 'Running' task's trap contexts.
@@ -176,6 +208,15 @@ fn mark_current_exited() {
     TASK_MANAGER.mark_current_exited();
 }
 
+/// Record the syscall with `syscall_id` in current task.
+pub fn record_syscall(syscall_id: usize) {
+    TASK_MANAGER.record_syscall(syscall_id);
+}
+
+pub fn get_syscall_times(syscall_id: usize) -> isize {
+    TASK_MANAGER.get_syscall_times(syscall_id) as isize
+}
+
 /// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {
     mark_current_suspended();
@@ -186,6 +227,14 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+pub fn mmap_current_task(start_va: mm::VirtAddr, end_va: mm::VirtAddr, port: usize){
+    TASK_MANAGER.mmap_current_task(start_va, end_va, port);
+}
+
+pub fn munmap_current_task(start_va: mm::VirtAddr, end_va: mm::VirtAddr, port: usize){
+    TASK_MANAGER.munmap_current_task(start_va, end_va);
 }
 
 /// Get the current 'Running' task's token.
