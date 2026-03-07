@@ -64,6 +64,7 @@ impl MemorySet {
         );
     }
 
+    /// Remove a map area from memory set
     pub fn remove_area(
         &mut self,
         start_va: VirtAddr,

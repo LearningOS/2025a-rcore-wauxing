@@ -14,7 +14,6 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_app_data, get_num_app};
 use crate::mm;
 use crate::sync::UPSafeCell;
@@ -23,7 +22,7 @@ use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
-pub use taskinfo::TaskInfo;
+
 pub use context::TaskContext;
 
 /// The task manager, where all the tasks are managed.
@@ -95,13 +94,13 @@ impl TaskManager {
     fn record_syscall(&self, syscall_id: usize) {
         let mut inner = self.inner.exclusive_access();
         let cur = inner.current_task;
-        inner.tasks[cur].taskinfo.syscall_records[syscall_id] += 1;
+        inner.tasks[cur].task_info.syscall_records[syscall_id] += 1;
     }
 
     fn get_syscall_times(&self, syscall_id: usize) -> usize {
         let inner = self.inner.exclusive_access();
         let cur = inner.current_task;
-        inner.tasks[cur].taskinfo.syscall_records[syscall_id]
+        inner.tasks[cur].task_info.syscall_records[syscall_id]
     }
 
     /// Change the status of current `Running` task into `Ready`.
@@ -213,6 +212,7 @@ pub fn record_syscall(syscall_id: usize) {
     TASK_MANAGER.record_syscall(syscall_id);
 }
 
+/// Get the number of times a specific syscall has been called
 pub fn get_syscall_times(syscall_id: usize) -> isize {
     TASK_MANAGER.get_syscall_times(syscall_id) as isize
 }
@@ -229,11 +229,13 @@ pub fn exit_current_and_run_next() {
     run_next_task();
 }
 
+/// mmap for current task
 pub fn mmap_current_task(start_va: mm::VirtAddr, end_va: mm::VirtAddr, port: usize){
     TASK_MANAGER.mmap_current_task(start_va, end_va, port);
 }
 
-pub fn munmap_current_task(start_va: mm::VirtAddr, end_va: mm::VirtAddr, port: usize){
+/// munmap for current task
+pub fn munmap_current_task(start_va: mm::VirtAddr, end_va: mm::VirtAddr){
     TASK_MANAGER.munmap_current_task(start_va, end_va);
 }
 

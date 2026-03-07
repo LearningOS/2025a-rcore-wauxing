@@ -2,8 +2,8 @@
 use crate::{
     mm,
     task::{
-        change_program_brk, current_user_token, exit_current_and_run_next, get_syscall_times, mmap_current_task,
-        suspend_current_and_run_next, TASK_MANAGER,
+        change_program_brk, current_user_token, exit_current_and_run_next, get_syscall_times,
+        mmap_current_task, munmap_current_task, suspend_current_and_run_next,
     },
     timer::get_time_us,
 };
@@ -101,8 +101,11 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     let start_vpn = start_va.floor();
     let end_vpn = mm::VirtAddr::from(start + len).ceil();
     let mut page_mapped: bool = false;
-    for i in start_vpn..end_vpn {
-        if ptable.translate(i).map_or(false, |pte| pte.is_valid()){
+    for i in start_vpn.0..end_vpn.0 {
+        if ptable
+            .translate(mm::VirtPageNum::from(i))
+            .map_or(false, |pte| pte.is_valid())
+        {
             page_mapped = true;
             break;
         }
@@ -110,7 +113,7 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     if not_aligned || port_not_valid || page_mapped {
         -1
     } else {
-        mmap_current_task(start_va, start_va + len, port);
+        mmap_current_task(start_va, mm::VirtAddr::from(start_va.0 + len), port);
         0
     }
 }
@@ -127,8 +130,11 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
     let start_vpn = start_va.floor();
     let end_vpn = mm::VirtAddr::from(start + len).ceil();
     let mut page_not_mapped: bool = false;
-    for i in start_vpn..end_vpn {
-        if ptable.translate(i).map_or(true, |pte| !pte.is_valid()){
+    for i in start_vpn.0..end_vpn.0 {
+        if ptable
+            .translate(mm::VirtPageNum::from(i))
+            .map_or(true, |pte| !pte.is_valid())
+        {
             page_not_mapped = true;
             break;
         }
@@ -136,7 +142,7 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
     if not_aligned || page_not_mapped {
         -1
     } else {
-        munmap_current_task(start_va, start_va + len);
+        munmap_current_task(start_va, mm::VirtAddr::from(start_va.0 + len));
         0
     }
 }

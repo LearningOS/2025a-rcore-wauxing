@@ -15,6 +15,7 @@ pub struct TaskControlBlock {
     /// Maintain the execution status of the current process
     pub task_status: TaskStatus,
 
+    /// Task info for syscall records
     pub task_info: TaskInfo,
     
     /// Application address space
@@ -118,13 +119,16 @@ pub enum TaskStatus {
     Exited,
 }
 
+/// Task info for syscall records
 pub struct TaskInfo {
+    /// Syscall records array
     pub syscall_records: [usize ; MAX_SYSCALL_NUM],
 }
 
 impl TaskInfo {
+    /// Initialize a new TaskInfo
     pub fn init() -> Self {
-        let mut syscall_records: [usize; MAX_SYSCALL_NUM] = Default::default();
+        let syscall_records: [usize; MAX_SYSCALL_NUM] = [0; MAX_SYSCALL_NUM];
         Self {
             syscall_records,
         }
