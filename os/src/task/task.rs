@@ -28,6 +28,7 @@ pub struct TaskControlBlock {
 }
 
 impl TaskControlBlock {
+    /// Set the status of the task
     pub fn set_status(&mut self, status: TaskStatus) {
         self.task_status = status;
         self.task_info.status = status;

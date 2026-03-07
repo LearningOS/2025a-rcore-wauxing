@@ -184,6 +184,7 @@ pub fn record_syscall(syscall_id: usize) {
     TASK_MANAGER.record_syscall(syscall_id);
 }
 
+/// Get the number of times a specific syscall has been called
 pub fn get_syscall_times(syscall_id: usize) -> isize {
     TASK_MANAGER.get_syscall_times(syscall_id)
 }

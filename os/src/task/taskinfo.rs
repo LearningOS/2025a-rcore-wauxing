@@ -1,17 +1,21 @@
+use super::TaskStatus;
 use crate::config::MAX_SYSCALL_NUM;
-use super::TaskStatus;	
 
 /// The info of a task
 #[derive(Copy, Clone)]
 pub struct TaskInfo {
+    /// Task ID
     pub id: usize,
+    /// Task status
     pub status: TaskStatus,
-    pub syscall_records: [usize ; MAX_SYSCALL_NUM],
+    /// Syscall records array
+    pub syscall_records: [usize; MAX_SYSCALL_NUM],
 }
 
 impl TaskInfo {
+    /// Initialize a new TaskInfo
     pub fn init() -> Self {
-        let mut syscall_records: [usize; MAX_SYSCALL_NUM] = Default::default();
+        let syscall_records: [usize; MAX_SYSCALL_NUM] = [0; MAX_SYSCALL_NUM];
         Self {
             id: 0,
             status: TaskStatus::UnInit,
