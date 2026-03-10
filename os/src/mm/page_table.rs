@@ -1,5 +1,7 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
+use crate::config::PAGE_SIZE;
+
 use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::vec;
 use alloc::vec::Vec;
@@ -57,6 +59,10 @@ impl PageTableEntry {
     /// The page pointered by page table entry is valid?
     pub fn is_valid(&self) -> bool {
         (self.flags() & PTEFlags::V) != PTEFlags::empty()
+    }
+    /// The page pointered by page table entry is user-accessible?
+    pub fn is_user(&self) -> bool {
+        (self.flags() & PTEFlags::U) != PTEFlags::empty()
     }
     /// The page pointered by page table entry is readable?
     pub fn readable(&self) -> bool {
@@ -162,6 +168,9 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
     let page_table = PageTable::from_token(token);
     let mut start = ptr as usize;
     let end = start + len;
+    if end > 1<<39{
+        panic!("translated_byte_buffer: integer overflow");
+    }
     let mut v = Vec::new();
     while start < end {
         let start_va = VirtAddr::from(start);
@@ -175,7 +184,7 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         } else {
             v.push(&mut ppn.get_bytes_array()[start_va.page_offset()..end_va.page_offset()]);
         }
-        start = end_va.into();
+        start += PAGE_SIZE;
     }
     v
 }

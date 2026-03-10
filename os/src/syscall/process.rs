@@ -63,27 +63,54 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     trace!("kernel: sys_trace");
     const TRACE_READ: usize = 0;
     const TRACE_WRITE: usize = 1;
-    const TRACE_CHECK: usize = 2;
+    const TRACE_SYSCALL: usize = 2;
 
     match trace_request {
         TRACE_READ => {
-            let buffers = mm::translated_byte_buffer(current_user_token(), id as *const u8, 1);
-            // 安全检查
-            if buffers.is_empty() || buffers[0].is_empty() {
-                return -1;
+            // 检查地址是否有效
+            
+            let vpn = match mm::VirtAddr::try_from(id){
+                Ok(v) => v.floor(),
+                Err(e) => {
+                    trace!("sys_trace: {:?}", e);
+                    return -1;
+                }
+            };
+            let token = current_user_token();
+            let page_table = mm::PageTable::from_token(token);
+            if let Some(pte) = page_table.translate(vpn) {
+                if pte.is_valid() && pte.is_user() {
+                    let buffers = mm::translated_byte_buffer(token, id as *const u8, 1);
+                    if !buffers.is_empty() && !buffers[0].is_empty() {
+                        return buffers[0][0] as isize;
+                    }
+                }
             }
-            buffers[0][0] as isize
+            -1
         }
         TRACE_WRITE => {
-            let mut buffers = mm::translated_byte_buffer(current_user_token(), id as *mut u8, 1);
-            // 安全检查
-            if buffers.is_empty() || buffers[0].is_empty() {
-                return -1;
+            // 检查地址是否有效且可写
+            let vpn = match mm::VirtAddr::try_from(id){
+                Ok(v) => v.floor(),
+                Err(e) => {
+                    trace!("sys_trace: {:?}", e);
+                    return -1;
+                }
+            };
+            let token = current_user_token();
+            let page_table = mm::PageTable::from_token(token);
+            if let Some(pte) = page_table.translate(vpn) {
+                if pte.is_valid() && pte.is_user() && pte.writable() {
+                    let mut buffers = mm::translated_byte_buffer(token, id as *mut u8, 1);
+                    if !buffers.is_empty() && !buffers[0].is_empty() {
+                        buffers[0][0] = data as u8;
+                        return 0;
+                    }
+                }
             }
-            buffers[0][0] = data as u8;
-            0
+            -1
         }
-        TRACE_CHECK => get_syscall_times(id),
+        TRACE_SYSCALL => get_syscall_times(id),
         _ => -1,
     }
 }
